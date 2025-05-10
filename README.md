@@ -1,6 +1,6 @@
 # Christmas - HackMyVM (Hard)
 
-![Christmas.png]
+![Christmas Icon](Christmas.png)
 
 ## Übersicht
 
